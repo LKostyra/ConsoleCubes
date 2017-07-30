@@ -1,0 +1,25 @@
+#
+# COnsoleCubes project - ignored files list
+#
+
+# Visual Studio precompiled headers
+/ipch
+
+# Visual Studio intermediate projects' directories
+/Obj
+
+# Output dir and files
+/Bin
+
+# Visual Studio
+*.vsp
+*.psess
+/.vs
+
+# Other useless folders and file patterns
+*.opensdf
+*.opendb
+*.sdf
+*.suo
+*.vcxproj.user
+*.VC.db
