@@ -87,7 +87,7 @@ bool Console::GetScreenSize(uint32_t& x, uint32_t& y)
 void Console::Write(const std::string& str)
 {
     DWORD charsWritten = 0;
-    if (!WriteConsole(mConsoleHandle, str.c_str(), str.size(), &charsWritten, 0))
+    if (!WriteConsole(mConsoleHandle, str.c_str(), static_cast<DWORD>(str.size()), &charsWritten, 0))
     {
         // log
         OutputDebugString("Failed to write\n");

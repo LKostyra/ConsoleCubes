@@ -14,14 +14,9 @@ class Field
     uint32_t mFieldSizeY;
     std::vector<unsigned char> mField;
 
-    __forceinline unsigned char GetFieldCell(uint32_t x, uint32_t y)
+    __forceinline unsigned char GetFieldCell(uint32_t x, uint32_t y) const
     {
         return mField[y * mFieldSizeX + x];
-    }
-
-    __forceinline void SetFieldCell(uint32_t x, uint32_t y, unsigned char c)
-    {
-        mField[y * mFieldSizeX + x] = c;
     }
 
 public:
@@ -37,6 +32,9 @@ public:
     bool CanGoLeft(Block* b);
     bool CanAdvanceVariant(Block* b);
 
+    void GetRowsToClean(std::vector<uint32_t>& rows) const;
+    void ShiftRowsDown(const std::vector<uint32_t>& rows);
+
     __forceinline uint32_t GetSizeX() const
     {
         return mFieldSizeX - 2;
@@ -45,5 +43,10 @@ public:
     __forceinline uint32_t GetSizeY() const
     {
         return mFieldSizeY - 2;
+    }
+
+    __forceinline void SetFieldCell(uint32_t x, uint32_t y, unsigned char c)
+    {
+        mField[y * mFieldSizeX + x] = c;
     }
 };

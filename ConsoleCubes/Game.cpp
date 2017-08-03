@@ -3,6 +3,13 @@
 #include "BlockLibrary.hpp"
 
 
+namespace {
+
+const double BLOCK_FALL_INTERVAL = 1.0;
+const double ANIMATION_INTERVAL = 0.1;
+
+} // namespace
+
 void Game::OnEvent(INPUT_RECORD* ev)
 {
     switch (ev->EventType)
@@ -10,11 +17,8 @@ void Game::OnEvent(INPUT_RECORD* ev)
     case KEY_EVENT:
     {
         WORD vk = ev->Event.KeyEvent.wVirtualKeyCode;
-        if (ev->Event.KeyEvent.bKeyDown)
-        {
-            UpdateGame(vk);
-            mNeedsRedraw = true;
-        }
+        if (ev->Event.KeyEvent.bKeyDown && !mCleanRowAnim)
+            OnPlayerInput(vk);
 
         break;
     }
@@ -28,6 +32,7 @@ Game::Game()
     : mFieldOffsetX(2)
     , mFieldOffsetY(2)
     , mNeedsRedraw(true)
+    , mCleanRowAnim(false)
     , mCurrentBlock(Blocks::Collection[0])
     , mNextBlock(Blocks::Collection[1])
     , mNextBlockInd(2)
@@ -38,34 +43,115 @@ Game::~Game()
 {
 }
 
-void Game::UpdateGame(uint32_t keyCode)
+void Game::AdvanceBlock()
 {
-    if (!mField.CanGoDown(mCurrentBlock))
+    mCurrentBlock = mNextBlock;
+    mCurrentBlock->SetPos(5, 1);
+
+    mNextBlock = Blocks::Collection[mNextBlockInd];
+    mNextBlockInd++;
+    if (mNextBlockInd >= Blocks::CollectionSize)
+        mNextBlockInd = 0;
+    mNextBlock->Reset();
+    mNextBlock->SetPos(1,1);
+}
+
+void Game::AddBlockToField()
+{
+    mField.PutBlock(mCurrentBlock);
+
+    mField.GetRowsToClean(mAnimationRows);
+    if (!mAnimationRows.empty())
     {
-        mField.PutBlock(mCurrentBlock);
-        mCurrentBlock = mNextBlock;
-        mCurrentBlock->SetPos(5, 1);
-        mNextBlock = Blocks::Collection[mNextBlockInd];
-        mNextBlockInd++;
-        if (mNextBlockInd >= Blocks::CollectionSize)
-            mNextBlockInd = 0;
-        mNextBlock->SetPos(1,1);
+        mCurrentBlock = nullptr;
+        mCleanRowAnim = true;
+        mAnimationStep = 0;
+        mAnimationCounter = 0.0;
+        mBlockFallTime = 0.0;
         return;
     }
 
+    AdvanceBlock();
+    mNeedsRedraw = true;
+}
+
+void Game::UpdateGame()
+{
+    double delta = mGameTimer.Stop();
+    mGameTimer.Start();
+
+    if (mCleanRowAnim)
+    {
+        mAnimationCounter += delta;
+        if (mAnimationCounter > ANIMATION_INTERVAL)
+        {
+            if (mAnimationStep < mField.GetSizeX())
+                for (auto& row : mAnimationRows)
+                    mField.SetFieldCell(mAnimationStep + 1, row, EMPTY_FIELD);
+
+            mNeedsRedraw = true;
+            if (mAnimationStep > mField.GetSizeX())
+            {
+                mCleanRowAnim = false;
+                mField.ShiftRowsDown(mAnimationRows);
+                AdvanceBlock();
+                return;
+            }
+
+            mAnimationStep++;
+            mAnimationCounter -= ANIMATION_INTERVAL;
+        }
+
+        return;
+    }
+
+    mBlockFallTime += delta;
+    if (mBlockFallTime > BLOCK_FALL_INTERVAL)
+    {
+        uint32_t bPosX = 0, bPosY = 0;
+        mCurrentBlock->GetPos(bPosX, bPosY);
+
+        if (!mField.CanGoDown(mCurrentBlock))
+        {
+            AddBlockToField();
+            return;
+        }
+        else
+        {
+            bPosY++;
+            mCurrentBlock->SetPos(bPosX, bPosY);
+            mNeedsRedraw = true;
+        }
+
+        mBlockFallTime -= BLOCK_FALL_INTERVAL;
+    }
+}
+
+void Game::OnPlayerInput(uint32_t keyCode)
+{
     uint32_t bSizeX = 0, bSizeY = 0;
     uint32_t bPosX = 0, bPosY = 0;
 
     mCurrentBlock->GetPos(bPosX, bPosY);
     mCurrentBlock->GetSize(bSizeX, bSizeY);
 
-    // position update
     if (keyCode == VK_LEFT && mField.CanGoLeft(mCurrentBlock))
         bPosX--;
     if (keyCode == VK_RIGHT && mField.CanGoRight(mCurrentBlock))
         bPosX++;
     if (keyCode == VK_DOWN)
-        bPosY++;
+    {
+        if (mField.CanGoDown(mCurrentBlock))
+        {
+            bPosY++;
+            mBlockFallTime = 0.0;
+        }
+        else
+        {
+            AddBlockToField();
+            return;
+        }
+    }
     if (keyCode == VK_UP)
     {
         if (mField.CanAdvanceVariant(mCurrentBlock))
@@ -79,6 +165,7 @@ void Game::UpdateGame(uint32_t keyCode)
     }
 
     mCurrentBlock->SetPos(bPosX, bPosY);
+    mNeedsRedraw = true; 
 }
 
 void Game::UpdateMenu()
@@ -115,6 +202,9 @@ bool Game::SwitchToGameMode(uint32_t fieldX, uint32_t fieldY)
 
     mNextBlock->SetPos(2, 2);
 
+    mGameTimer.Start();
+    mBlockFallTime = 0.0;
+
     return true;
 }
 
@@ -124,6 +214,8 @@ void Game::MainLoop()
     {
         if (mCurrentMode == GameMode::GAME)
         {
+            UpdateGame();
+
             // do the drawing
             if (mNeedsRedraw)
             {

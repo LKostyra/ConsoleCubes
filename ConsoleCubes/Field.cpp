@@ -29,9 +29,9 @@ bool Field::Create(Console* con, uint32_t fieldX, uint32_t fieldY)
         {
             if (i == 0 || j == 0 ||
                 i == mFieldSizeX - 1 || j == mFieldSizeY - 1)
-                mField[(j * mFieldSizeX) + i] = WALL_FIELD;
+                SetFieldCell(i, j, WALL_FIELD);
             else
-                mField[(j * mFieldSizeX) + i] = EMPTY_FIELD;
+                SetFieldCell(i, j, EMPTY_FIELD);
         }
     }
 
@@ -198,4 +198,45 @@ bool Field::CanAdvanceVariant(Block* b)
     }
 
     return true;
+}
+
+void Field::GetRowsToClean(std::vector<uint32_t>& rows) const
+{
+    rows.clear();
+
+    for (uint32_t j = 1; j <= GetSizeY(); ++j)
+    {
+        bool hasEmptySpaces = false;
+
+        for (uint32_t i = 1; i <= GetSizeX(); ++i)
+        {
+            if (GetFieldCell(i, j) == EMPTY_FIELD)
+            {
+                hasEmptySpaces = true;
+                break;
+            }
+        }
+
+        if (!hasEmptySpaces)
+            rows.push_back(j);
+    }
+}
+
+void Field::ShiftRowsDown(const std::vector<uint32_t>& rows)
+{
+    for (auto& row : rows)
+    {
+        for (uint32_t j = row; j > 0; --j)
+        {
+            for (uint32_t i = 1; i <= GetSizeX(); ++i)
+            {
+                SetFieldCell(i, j, GetFieldCell(i, j - 1));
+            }
+        }
+
+        for (uint32_t i = 1; i <= GetSizeX(); ++i)
+        {
+            SetFieldCell(i, 1, EMPTY_FIELD);
+        }
+    }
 }
