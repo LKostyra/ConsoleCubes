@@ -5,8 +5,11 @@
 
 namespace {
 
-const double BLOCK_FALL_INTERVAL = 1.0;
+const double BLOCK_FALL_BASE_INTERVAL = 1.0;
+const double BLOCK_FALL_PER_LEVEL_INTERVAL_DECREASE = 0.1;
 const double ANIMATION_INTERVAL = 0.1;
+const uint32_t SCORE_BASE[4] = { 40, 100, 300, 1200};
+const uint32_t ROWS_PER_LEVEL = 20;
 
 } // namespace
 
@@ -36,6 +39,10 @@ Game::Game()
     , mCurrentBlock(Blocks::Collection[0])
     , mNextBlock(Blocks::Collection[1])
     , mNextBlockInd(2)
+    , mScore(0)
+    , mLevel(0)
+    , mLines(0)
+    , mCurrentLevelLines(0)
 {
 }
 
@@ -60,8 +67,8 @@ void Game::AddBlockToField()
 {
     mField.PutBlock(mCurrentBlock);
 
-    mField.GetRowsToClean(mAnimationRows);
-    if (!mAnimationRows.empty())
+    mField.GetRowsToClean(mClearedRows);
+    if (!mClearedRows.empty())
     {
         mCurrentBlock = nullptr;
         mCleanRowAnim = true;
@@ -86,15 +93,16 @@ void Game::UpdateGame()
         if (mAnimationCounter > ANIMATION_INTERVAL)
         {
             if (mAnimationStep < mField.GetSizeX())
-                for (auto& row : mAnimationRows)
+                for (auto& row : mClearedRows)
                     mField.SetFieldCell(mAnimationStep + 1, row, EMPTY_FIELD);
 
             mNeedsRedraw = true;
             if (mAnimationStep > mField.GetSizeX())
             {
                 mCleanRowAnim = false;
-                mField.ShiftRowsDown(mAnimationRows);
+                mField.ShiftRowsDown(mClearedRows);
                 AdvanceBlock();
+                AddScore(static_cast<uint32_t>(mClearedRows.size()));
                 return;
             }
 
@@ -106,7 +114,8 @@ void Game::UpdateGame()
     }
 
     mBlockFallTime += delta;
-    if (mBlockFallTime > BLOCK_FALL_INTERVAL)
+    double blockFallInterval = BLOCK_FALL_BASE_INTERVAL - BLOCK_FALL_PER_LEVEL_INTERVAL_DECREASE * mLevel;
+    if (mBlockFallTime > blockFallInterval)
     {
         uint32_t bPosX = 0, bPosY = 0;
         mCurrentBlock->GetPos(bPosX, bPosY);
@@ -123,7 +132,25 @@ void Game::UpdateGame()
             mNeedsRedraw = true;
         }
 
-        mBlockFallTime -= BLOCK_FALL_INTERVAL;
+        mBlockFallTime -= blockFallInterval;
+    }
+}
+
+void Game::AddScore(const uint32_t clearedRows)
+{
+    if (clearedRows > 4 || clearedRows == 0)
+        return;
+
+    // Scoring system is based on original Nintendo scoring system
+    // http://tetris.wikia.com/wiki/Scoring#Original_Nintendo_Scoring_System
+    mScore += mLevel * SCORE_BASE[clearedRows - 1];
+    mLines += clearedRows;
+    mCurrentLevelLines += clearedRows;
+
+    if (mCurrentLevelLines >= ROWS_PER_LEVEL && mLevel < 9)
+    {
+        mCurrentLevelLines -= ROWS_PER_LEVEL;
+        mLevel++;
     }
 }
 
@@ -205,6 +232,11 @@ bool Game::SwitchToGameMode(uint32_t fieldX, uint32_t fieldY)
     mGameTimer.Start();
     mBlockFallTime = 0.0;
 
+    mScore = 0;
+    mLevel = 8;
+    mLines = 0;
+    mCurrentLevelLines = 0;
+
     return true;
 }
 
@@ -212,6 +244,9 @@ void Game::MainLoop()
 {
     while (mConsole.EventLoop())
     {
+        // sleep for ~16 ms to simulate 60fps vsync and probe input at this rate
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+
         if (mCurrentMode == GameMode::GAME)
         {
             UpdateGame();
@@ -221,6 +256,18 @@ void Game::MainLoop()
             {
                 mField.Draw(mFieldOffsetX, mFieldOffsetY, mCurrentBlock);
                 mNextBlockField.Draw(mFieldOffsetX + mField.GetSizeX() + 3, mFieldOffsetY, mNextBlock);
+
+                mConsole.SetPosition(mFieldOffsetX + mField.GetSizeX() + 3,
+                                     mFieldOffsetY + mNextBlockField.GetSizeY() + 3);
+                mConsole.Write("Score: " + std::to_string(mScore));
+
+                mConsole.SetPosition(mFieldOffsetX + mField.GetSizeX() + 3,
+                                     mFieldOffsetY + mNextBlockField.GetSizeY() + 5);
+                mConsole.Write("Level: " + std::to_string(mLevel));
+
+                mConsole.SetPosition(mFieldOffsetX + mField.GetSizeX() + 3,
+                                     mFieldOffsetY + mNextBlockField.GetSizeY() + 7);
+                mConsole.Write("Lines: " + std::to_string(mLines));
 
                 mNeedsRedraw = false;
             }

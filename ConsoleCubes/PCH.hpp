@@ -8,3 +8,4 @@
 #include <vector>
 #include <cwchar>
 #include <list>
+#include <thread>
