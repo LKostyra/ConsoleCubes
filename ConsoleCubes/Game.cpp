@@ -8,28 +8,26 @@ namespace {
 const double BLOCK_FALL_BASE_INTERVAL = 1.0;
 const double BLOCK_FALL_PER_LEVEL_INTERVAL_DECREASE = 0.1;
 const double ANIMATION_INTERVAL = 0.1;
+const double GAME_REFRESH_RATE_S = 0.01;
 const uint32_t SCORE_BASE[4] = { 40, 100, 300, 1200};
 const uint32_t ROWS_PER_LEVEL = 20;
 
+const char* LOGO[] = {
+" ===   ===  =   =  ====  ===  =    ====",
+"=   = =   = ==  = =     =   = =    =    ",
+"=     =   = = = =  ===  =   = =    ====",
+"=   = =   = =  ==     = =   = =    =    ",
+" ===   ===  =   = ====   ===  ==== ====",
+" ",
+"       ===  =   = ====  ====  ====",
+"      =   = =   = =   = =    =    ",
+"      =     =   = ====  ====  === ",
+"      =   = =   = =   = =        =",
+"       ===   ===  ====  ==== ==== ",
+};
+const uint32_t LOGO_ROWS = sizeof(LOGO) / sizeof(LOGO[0]);
+
 } // namespace
-
-void Game::OnEvent(INPUT_RECORD* ev)
-{
-    switch (ev->EventType)
-    {
-    case KEY_EVENT:
-    {
-        WORD vk = ev->Event.KeyEvent.wVirtualKeyCode;
-        if (ev->Event.KeyEvent.bKeyDown && !mCleanRowAnim)
-            OnPlayerInput(vk);
-
-        break;
-    }
-    default:
-        break;
-    }
-}
-
 
 Game::Game()
     : mFieldOffsetX(2)
@@ -43,12 +41,66 @@ Game::Game()
     , mLevel(0)
     , mLines(0)
     , mCurrentLevelLines(0)
+    , mCurrentMenuScreen(nullptr)
 {
 }
 
 Game::~Game()
 {
 }
+
+
+//// menu callbacks ////
+
+void Game::StartGameMenuCallback()
+{
+    mCurrentMenuScreen = &mSetupMenuScreen;
+    mCurrentMenuScreen->SelectOption(0);
+}
+
+void Game::ExitGameMenuCallback()
+{
+    mMainLoopActive = false;
+}
+
+void Game::StartGameSetupCallback()
+{
+    SwitchToGameMode(10, 20);
+}
+
+void Game::SwitchToMainMenuCallback()
+{
+    mCurrentMenuScreen = &mMainMenuScreen;
+    mCurrentMenuScreen->SelectOption(0);
+}
+
+
+//// window processing ////
+
+void Game::OnEvent(INPUT_RECORD* ev)
+{
+    switch (ev->EventType)
+    {
+    case KEY_EVENT:
+    {
+        WORD vk = ev->Event.KeyEvent.wVirtualKeyCode;
+        if (ev->Event.KeyEvent.bKeyDown && !mCleanRowAnim)
+        {
+            if (mCurrentMode == GameMode::GAME)
+                ProcessGameInput(vk);
+            else
+                ProcessMenuInput(vk);
+        }
+
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+
+//// game logic ////
 
 void Game::AdvanceBlock()
 {
@@ -67,10 +119,12 @@ void Game::AddBlockToField()
 {
     mField.PutBlock(mCurrentBlock);
 
-    mField.GetRowsToClean(mClearedRows);
-    if (!mClearedRows.empty())
+    mField.GetRowsToClean(mClearedRows, &mClearedRowsCount);
+    if (mClearedRowsCount)
     {
         mCurrentBlock = nullptr;
+
+        // trigger the animation and initialize params
         mCleanRowAnim = true;
         mAnimationStep = 0;
         mAnimationCounter = 0.0;
@@ -82,11 +136,8 @@ void Game::AddBlockToField()
     mNeedsRedraw = true;
 }
 
-void Game::UpdateGame()
+void Game::UpdateGame(double delta)
 {
-    double delta = mGameTimer.Stop();
-    mGameTimer.Start();
-
     if (mCleanRowAnim)
     {
         mAnimationCounter += delta;
@@ -100,9 +151,9 @@ void Game::UpdateGame()
             if (mAnimationStep > mField.GetSizeX())
             {
                 mCleanRowAnim = false;
-                mField.ShiftRowsDown(mClearedRows);
+                mField.ShiftRowsDown(mClearedRows, mClearedRowsCount);
                 AdvanceBlock();
-                AddScore(static_cast<uint32_t>(mClearedRows.size()));
+                AddScore(mClearedRowsCount);
                 return;
             }
 
@@ -154,7 +205,7 @@ void Game::AddScore(const uint32_t clearedRows)
     }
 }
 
-void Game::OnPlayerInput(uint32_t keyCode)
+void Game::ProcessGameInput(uint32_t keyCode)
 {
     uint32_t bSizeX = 0, bSizeY = 0;
     uint32_t bPosX = 0, bPosY = 0;
@@ -195,10 +246,68 @@ void Game::OnPlayerInput(uint32_t keyCode)
     mNeedsRedraw = true; 
 }
 
-void Game::UpdateMenu()
+void Game::DrawGame()
 {
-    // TODO
+    mField.Draw(mFieldOffsetX, mFieldOffsetY, mCurrentBlock);
+    mNextBlockField.Draw(mFieldOffsetX + mField.GetSizeX() + 3, mFieldOffsetY, mNextBlock);
+
+    mConsole.SetPosition(mFieldOffsetX + mField.GetSizeX() + 3,
+                            mFieldOffsetY + mNextBlockField.GetSizeY() + 3);
+    mConsole.Write("Score: " + std::to_string(mScore));
+
+    mConsole.SetPosition(mFieldOffsetX + mField.GetSizeX() + 3,
+                            mFieldOffsetY + mNextBlockField.GetSizeY() + 5);
+    mConsole.Write("Level: " + std::to_string(mLevel));
+
+    mConsole.SetPosition(mFieldOffsetX + mField.GetSizeX() + 3,
+                            mFieldOffsetY + mNextBlockField.GetSizeY() + 7);
+    mConsole.Write("Lines: " + std::to_string(mLines));
+
+    mNeedsRedraw = false;
 }
+
+
+//// menu processing ////
+
+void Game::ProcessMenuInput(uint32_t keyCode)
+{
+    if (keyCode == VK_RETURN)
+        mCurrentMenuScreen->ExecuteSelectedOption();
+
+    int32_t option = mCurrentMenuScreen->GetSelectedOption();
+
+    if (keyCode == VK_DOWN)
+        option++;
+    if (keyCode == VK_UP)
+        option--;
+
+    mCurrentMenuScreen->SelectOption(option);
+
+    mNeedsRedraw = true;
+}
+
+void Game::DrawMenu(uint32_t menuOffsetX, uint32_t menuOffsetY)
+{
+    // logo
+    for (uint32_t j = 0; j < LOGO_ROWS; ++j)
+    {
+        mConsole.SetPosition(menuOffsetX, menuOffsetY + j);
+        mConsole.Write(LOGO[j]);
+    }
+
+    // actual menu
+    if (mCurrentMenuScreen == nullptr)
+    {
+        mConsole.SetPosition(0, 0);
+        mConsole.Write("Incorrect Menu Screen to be drawn - this should not happen");
+    }
+    mCurrentMenuScreen->Draw(menuOffsetX, menuOffsetY + LOGO_ROWS + 3);
+
+    mNeedsRedraw = false;
+}
+
+
+//// globals ////
 
 bool Game::Create()
 {
@@ -206,6 +315,19 @@ bool Game::Create()
         return false;
 
     mConsole.SetEventCallback(std::bind(&Game::OnEvent, this, std::placeholders::_1));
+
+    std::vector<MenuOption> mainMenuOptions;
+    mainMenuOptions.push_back({ "Start Game", std::bind(&Game::StartGameMenuCallback, this) });
+    mainMenuOptions.push_back({ "Exit", std::bind(&Game::ExitGameMenuCallback, this) });
+    mMainMenuScreen.Create(&mConsole, mainMenuOptions);
+
+    std::vector<MenuOption> setupMenuOptions;
+    setupMenuOptions.push_back({ "Start", std::bind(&Game::StartGameSetupCallback, this) });
+    setupMenuOptions.push_back({ "Level", nullptr, 0, 9 });
+    setupMenuOptions.push_back({ "Exit", std::bind(&Game::SwitchToMainMenuCallback, this) });
+    mSetupMenuScreen.Create(&mConsole, setupMenuOptions);
+
+    mMainLoopActive = true;
 
     return true;
 }
@@ -229,48 +351,61 @@ bool Game::SwitchToGameMode(uint32_t fieldX, uint32_t fieldY)
 
     mNextBlock->SetPos(2, 2);
 
-    mGameTimer.Start();
     mBlockFallTime = 0.0;
 
     mScore = 0;
-    mLevel = 8;
+    mLevel = 0;
     mLines = 0;
     mCurrentLevelLines = 0;
 
     return true;
 }
 
+bool Game::SwitchToMenuMode()
+{
+    if (mCurrentMode == GameMode::MENU)
+        return true;
+
+    mCurrentMode = GameMode::MENU;
+
+    mField.Destroy();
+    mNextBlockField.Destroy();
+
+    mCurrentBlock = nullptr;
+    mNextBlock = nullptr;
+    mNextBlockInd = 0;
+
+    mCurrentMenuScreen = &mMainMenuScreen;
+    return true;
+}
+
 void Game::MainLoop()
 {
-    while (mConsole.EventLoop())
+    mGameTimer.Start();
+
+    while (mMainLoopActive)
     {
-        // sleep for ~16 ms to simulate 60fps vsync and probe input at this rate
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        double delta = mGameTimer.Stop();
+        mGameTimer.Start();
+
+        // simulate 100fps vsync, without this the CPU fries for no reason at all
+        double sleepDuration = GAME_REFRESH_RATE_S - delta;
+        if (sleepDuration > 0.0)
+            std::this_thread::sleep_for(std::chrono::duration<double>(sleepDuration));
+
+        mConsole.EventLoop();
 
         if (mCurrentMode == GameMode::GAME)
         {
-            UpdateGame();
+            UpdateGame(delta);
 
-            // do the drawing
             if (mNeedsRedraw)
-            {
-                mField.Draw(mFieldOffsetX, mFieldOffsetY, mCurrentBlock);
-                mNextBlockField.Draw(mFieldOffsetX + mField.GetSizeX() + 3, mFieldOffsetY, mNextBlock);
-
-                mConsole.SetPosition(mFieldOffsetX + mField.GetSizeX() + 3,
-                                     mFieldOffsetY + mNextBlockField.GetSizeY() + 3);
-                mConsole.Write("Score: " + std::to_string(mScore));
-
-                mConsole.SetPosition(mFieldOffsetX + mField.GetSizeX() + 3,
-                                     mFieldOffsetY + mNextBlockField.GetSizeY() + 5);
-                mConsole.Write("Level: " + std::to_string(mLevel));
-
-                mConsole.SetPosition(mFieldOffsetX + mField.GetSizeX() + 3,
-                                     mFieldOffsetY + mNextBlockField.GetSizeY() + 7);
-                mConsole.Write("Lines: " + std::to_string(mLines));
-
-                mNeedsRedraw = false;
-            }
+                DrawGame();
+        }
+        else if (mCurrentMode == GameMode::MENU)
+        {
+            if (mNeedsRedraw)
+                DrawMenu(5, 2);
         }
     }
 }

@@ -115,14 +115,14 @@ void Console::SetEventCallback(EventCallback callback)
     mEventCallback = callback;
 }
 
-bool Console::EventLoop()
+void Console::EventLoop()
 {
     INPUT_RECORD event;
     DWORD eventsRead = 0;
     if (!PeekConsoleInput(mStdinHandle, &event, 1, &eventsRead))
     {
         //log
-        return true;
+        return;
     }
 
     if (eventsRead > 0)
@@ -130,6 +130,4 @@ bool Console::EventLoop()
         ReadConsoleInput(mStdinHandle, &event, 1, &eventsRead);
         mEventCallback(&event);
     }
-
-    return true;
 }

@@ -22,5 +22,5 @@ public:
     void Write(const std::string& str);
     void Write(char c);
     void SetEventCallback(EventCallback callback);
-    bool EventLoop();
+    void EventLoop();
 };

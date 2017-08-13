@@ -4,6 +4,7 @@
 #include "Field.hpp"
 #include "Block.hpp"
 #include "Timer.hpp"
+#include "Menu.hpp"
 
 
 enum class GameMode
@@ -23,6 +24,7 @@ class Game
     uint32_t mFieldOffsetX;
     uint32_t mFieldOffsetY;
 
+    bool mMainLoopActive;
     bool mNeedsRedraw;
     bool mCleanRowAnim;
 
@@ -30,8 +32,9 @@ class Game
     Block* mNextBlock;
     uint32_t mNextBlockInd;
     double mBlockFallTime;
-    
-    std::vector<uint32_t> mClearedRows;
+
+    uint32_t mClearedRows[4];
+    uint32_t mClearedRowsCount;
     uint32_t mAnimationStep;
     double mAnimationCounter;
 
@@ -40,14 +43,28 @@ class Game
     uint32_t mLines;
     uint32_t mCurrentLevelLines;
 
+    // menu-related variables
+    Menu mMainMenuScreen;
+    Menu mSetupMenuScreen;
+    Menu* mCurrentMenuScreen;
+
+    void StartGameMenuCallback();
+    void ExitGameMenuCallback();
+
+    void StartGameSetupCallback();
+    void SwitchToMainMenuCallback();
+
     void OnEvent(INPUT_RECORD* event);
 
     void AdvanceBlock();
     void AddBlockToField();
-    void UpdateGame();
+    void UpdateGame(double delta);
+    void ProcessGameInput(uint32_t keyCode);
     void AddScore(const uint32_t clearedRows);
-    void OnPlayerInput(uint32_t keyCode);
-    void UpdateMenu();
+    void DrawGame();
+
+    void ProcessMenuInput(uint32_t keyCode);
+    void DrawMenu(uint32_t menuOffsetX, uint32_t menuOffsetY);
 
 public:
     Game();
@@ -55,5 +72,6 @@ public:
 
     bool Create();
     bool SwitchToGameMode(uint32_t fieldX, uint32_t fieldY);
+    bool SwitchToMenuMode();
     void MainLoop();
 };

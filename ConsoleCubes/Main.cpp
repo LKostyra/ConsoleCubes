@@ -6,7 +6,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 {
     Game g;
     g.Create();
-    g.SwitchToGameMode(10, 20);
+    g.SwitchToMenuMode();
     g.MainLoop();
     return 0;
 }

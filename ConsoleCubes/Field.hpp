@@ -24,6 +24,7 @@ public:
     ~Field();
 
     bool Create(Console* con, uint32_t fieldX, uint32_t fieldY);
+    void Destroy();
     void Draw(uint32_t x, uint32_t y, Block* b);
 
     void PutBlock(Block* b);
@@ -32,8 +33,8 @@ public:
     bool CanGoLeft(Block* b);
     bool CanAdvanceVariant(Block* b);
 
-    void GetRowsToClean(std::vector<uint32_t>& rows) const;
-    void ShiftRowsDown(const std::vector<uint32_t>& rows);
+    void GetRowsToClean(uint32_t* rows, uint32_t* rowCount) const;
+    void ShiftRowsDown(uint32_t* rows, uint32_t rowCount);
 
     __forceinline uint32_t GetSizeX() const
     {

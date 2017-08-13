@@ -38,6 +38,14 @@ bool Field::Create(Console* con, uint32_t fieldX, uint32_t fieldY)
     return true;
 }
 
+void Field::Destroy()
+{
+    mFieldSizeX = 0;
+    mFieldSizeY = 0;
+    mField.clear();
+    mConsole = nullptr;
+}
+
 void Field::Draw(uint32_t x, uint32_t y, Block* b)
 {
     for (uint32_t j = 0; j < mFieldSizeY; ++j)
@@ -200,9 +208,12 @@ bool Field::CanAdvanceVariant(Block* b)
     return true;
 }
 
-void Field::GetRowsToClean(std::vector<uint32_t>& rows) const
+// gathers which rows are full and need to be removed from the playfield
+// rowCount shouldn't exceed 4
+void Field::GetRowsToClean(uint32_t* rows, uint32_t* rowCount) const
 {
-    rows.clear();
+    if (!rows || !rowCount)
+        return;
 
     for (uint32_t j = 1; j <= GetSizeY(); ++j)
     {
@@ -218,15 +229,18 @@ void Field::GetRowsToClean(std::vector<uint32_t>& rows) const
         }
 
         if (!hasEmptySpaces)
-            rows.push_back(j);
+        {
+            rows[*rowCount] = j;
+            *rowCount++;
+        }
     }
 }
 
-void Field::ShiftRowsDown(const std::vector<uint32_t>& rows)
+void Field::ShiftRowsDown(uint32_t* rows, uint32_t rowCount)
 {
-    for (auto& row : rows)
+    for (uint32_t r = 0; r < rowCount; ++r)
     {
-        for (uint32_t j = row; j > 0; --j)
+        for (uint32_t j = rows[r]; j > 0; --j)
         {
             for (uint32_t i = 1; i <= GetSizeX(); ++i)
             {
