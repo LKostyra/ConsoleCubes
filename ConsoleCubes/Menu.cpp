@@ -11,7 +11,7 @@ Menu::~Menu()
 {
 }
 
-void Menu::Create(Console* console, const std::vector<MenuOption>& options)
+void Menu::Create(Console* console, const MenuOptions& options)
 {
     mConsole = console;
     mOptions = options;
@@ -33,17 +33,15 @@ void Menu::Draw(uint32_t offsetX, uint32_t offsetY)
         if (i == mSelectedOption)
         {
             mConsole->SetPosition(offsetX, height);
-            mConsole->Write("> " + mOptions[i].name);
+            mConsole->Write("> ");
         }
         else
         {
             mConsole->SetPosition(offsetX, height);
-            mConsole->Write("  " + mOptions[i].name);
+            mConsole->Write("  "); // will hide previous "> " selector
         }
 
-        if (mOptions[i].maxValue >= 0)
-            mConsole->Write(": " + std::to_string(mOptions[i].value));
-
+        mOptions[i]->Draw(mConsole, offsetX + 2, height);
         height += 2;
     }
 }

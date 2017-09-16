@@ -110,6 +110,17 @@ void Console::Write(char c)
     }
 }
 
+void Console::Clear()
+{
+    uint32_t x = 0, y = 0;
+    GetScreenSize(x, y);
+
+    SetPosition(0, 0);
+    for (uint32_t j = 0; j < y; ++j)
+        for (uint32_t i = 0; i < x; ++i)
+            Write(' ');
+}
+
 void Console::SetEventCallback(EventCallback callback)
 {
     mEventCallback = callback;

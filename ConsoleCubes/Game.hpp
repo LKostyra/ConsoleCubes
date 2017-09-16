@@ -5,6 +5,7 @@
 #include "Block.hpp"
 #include "Timer.hpp"
 #include "Menu.hpp"
+#include "ParameterMenuOption.hpp"
 
 
 enum class GameMode
@@ -48,11 +49,11 @@ class Game
     Menu mSetupMenuScreen;
     Menu* mCurrentMenuScreen;
 
-    void StartGameMenuCallback();
-    void ExitGameMenuCallback();
+    ParameterMenuOptionPtr mLevelMenuOption;
 
-    void StartGameSetupCallback();
-    void SwitchToMainMenuCallback();
+    void SwitchMenuCallback(Menu* newMenu);
+    void ExitGameMenuCallback();
+    void StartGameCallback();
 
     void OnEvent(INPUT_RECORD* event);
 

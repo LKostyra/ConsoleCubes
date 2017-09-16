@@ -21,6 +21,7 @@ public:
     bool GetScreenSize(uint32_t& x, uint32_t& y);
     void Write(const std::string& str);
     void Write(char c);
+    void Clear();
     void SetEventCallback(EventCallback callback);
     void EventLoop();
 };

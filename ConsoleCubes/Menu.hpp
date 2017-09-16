@@ -1,44 +1,22 @@
 #pragma once
 
 #include "Console.hpp"
+#include "MenuOption.hpp"
 
-
-struct MenuOption
-{
-    std::string name;
-    std::function<void()> callback;
-    int32_t value;
-    int32_t maxValue;
-
-    MenuOption()
-        : name()
-        , callback()
-        , value(-1)
-        , maxValue(-1)
-    {
-    }
-
-    MenuOption(const std::string& name, std::function<void()> callback, int32_t value = -1, int32_t maxValue = -1)
-        : name(name)
-        , callback(callback)
-        , value(value)
-        , maxValue(maxValue)
-    {
-    }
-};
+using MenuOptions = std::vector<std::shared_ptr<MenuOption>>;
 
 class Menu final
 {
 protected:
     Console* mConsole;
     int32_t mSelectedOption;
-    std::vector<MenuOption> mOptions;
+    MenuOptions mOptions;
 
 public:
     Menu();
     ~Menu();
 
-    void Create(Console* console, const std::vector<MenuOption>& options);
+    void Create(Console* console, const MenuOptions& options);
     void Draw(uint32_t offsetX, uint32_t offsetY);
     void Release();
 
@@ -57,18 +35,8 @@ public:
             mSelectedOption = option;
     }
 
-    __forceinline uint32_t GetOptionValue() const
+    __forceinline void Update(uint32_t keyCode)
     {
-        return mOptions[mSelectedOption].value;
-    }
-
-    __forceinline void SetOptionValue(uint32_t value)
-    {
-        mOptions[mSelectedOption].value = value;
-    }
-
-    __forceinline void ExecuteSelectedOption()
-    {
-        mOptions[mSelectedOption].callback();
+        mOptions[mSelectedOption]->Update(keyCode);
     }
 };

@@ -1,6 +1,7 @@
 #include "PCH.hpp"
 #include "Game.hpp"
 #include "BlockLibrary.hpp"
+#include "CallbackMenuOption.hpp"
 
 
 namespace {
@@ -52,10 +53,11 @@ Game::~Game()
 
 //// menu callbacks ////
 
-void Game::StartGameMenuCallback()
+void Game::SwitchMenuCallback(Menu* newMenu)
 {
-    mCurrentMenuScreen = &mSetupMenuScreen;
+    mCurrentMenuScreen = newMenu;
     mCurrentMenuScreen->SelectOption(0);
+    mConsole.Clear();
 }
 
 void Game::ExitGameMenuCallback()
@@ -63,15 +65,10 @@ void Game::ExitGameMenuCallback()
     mMainLoopActive = false;
 }
 
-void Game::StartGameSetupCallback()
+void Game::StartGameCallback()
 {
+    mConsole.Clear();
     SwitchToGameMode(10, 20);
-}
-
-void Game::SwitchToMainMenuCallback()
-{
-    mCurrentMenuScreen = &mMainMenuScreen;
-    mCurrentMenuScreen->SelectOption(0);
 }
 
 
@@ -271,8 +268,7 @@ void Game::DrawGame()
 
 void Game::ProcessMenuInput(uint32_t keyCode)
 {
-    if (keyCode == VK_RETURN)
-        mCurrentMenuScreen->ExecuteSelectedOption();
+    mCurrentMenuScreen->Update(keyCode);
 
     int32_t option = mCurrentMenuScreen->GetSelectedOption();
 
@@ -316,15 +312,17 @@ bool Game::Create()
 
     mConsole.SetEventCallback(std::bind(&Game::OnEvent, this, std::placeholders::_1));
 
-    std::vector<MenuOption> mainMenuOptions;
-    mainMenuOptions.push_back({ "Start Game", std::bind(&Game::StartGameMenuCallback, this) });
-    mainMenuOptions.push_back({ "Exit", std::bind(&Game::ExitGameMenuCallback, this) });
+    MenuOptions mainMenuOptions;
+    mainMenuOptions.push_back(std::make_shared<CallbackMenuOption>("Start Game", std::bind(&Game::SwitchMenuCallback, this, &mSetupMenuScreen)));
+    mainMenuOptions.push_back(std::make_shared<CallbackMenuOption>("Exit", std::bind(&Game::ExitGameMenuCallback, this)));
     mMainMenuScreen.Create(&mConsole, mainMenuOptions);
 
-    std::vector<MenuOption> setupMenuOptions;
-    setupMenuOptions.push_back({ "Start", std::bind(&Game::StartGameSetupCallback, this) });
-    setupMenuOptions.push_back({ "Level", nullptr, 0, 9 });
-    setupMenuOptions.push_back({ "Exit", std::bind(&Game::SwitchToMainMenuCallback, this) });
+    mLevelMenuOption.reset(new ParameterMenuOption("Level", 0, 9));
+
+    MenuOptions setupMenuOptions;
+    setupMenuOptions.push_back(std::make_shared<CallbackMenuOption>("Start", std::bind(&Game::StartGameCallback, this)));
+    setupMenuOptions.push_back(mLevelMenuOption);
+    setupMenuOptions.push_back(std::make_shared<CallbackMenuOption>("Exit", std::bind(&Game::SwitchMenuCallback, this, &mMainMenuScreen)));
     mSetupMenuScreen.Create(&mConsole, setupMenuOptions);
 
     mMainLoopActive = true;
@@ -354,7 +352,7 @@ bool Game::SwitchToGameMode(uint32_t fieldX, uint32_t fieldY)
     mBlockFallTime = 0.0;
 
     mScore = 0;
-    mLevel = 0;
+    mLevel = static_cast<uint32_t>(mLevelMenuOption->GetValue());
     mLines = 0;
     mCurrentLevelLines = 0;
 
